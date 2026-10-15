@@ -122,6 +122,15 @@ jobs:
             echo "copied Sony gps.conf over hardware/qcom/gps/msm8960/etc/gps.conf"
           fi
 
+      - name: Fix Jack server TLS (OpenJDK 8 disabled algorithms)
+        run: |
+          set +e
+          JSS=/etc/java-8-openjdk/security/java.security
+          echo "--- security dir ---"; ls -l /etc/java-8-openjdk/security/ || true
+          echo "--- before ---"; grep -n "jdk.tls.disabledAlgorithms" "$JSS" || true
+          sudo sed -i -E 's/TLSv1\.1(, )?//g; s/TLSv1(, )?//g' "$JSS"
+          echo "--- after ---"; grep -n "jdk.tls.disabledAlgorithms" "$JSS" || true
+
       - name: Build ROM
         run: |
           cd "$HOME/lineage"
