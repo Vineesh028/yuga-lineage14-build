@@ -104,8 +104,12 @@ jobs:
           export LC_ALL=C
           [ "${{ github.event.inputs.with_su }}" = "true" ] && export WITH_SU=true || true
           source build/envsetup.sh
+          set +e
           set -o pipefail
           brunch yuga 2>&1 | tee build.log
+          rc=${PIPESTATUS[0]}
+          echo "brunch rc=$rc"
+          exit $rc
 
       - name: Disk after build
         if: always()
