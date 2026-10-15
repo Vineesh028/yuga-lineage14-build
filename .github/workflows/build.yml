@@ -1,0 +1,119 @@
+name: Build LineageOS 14.1 for yuga
+
+on:
+  workflow_dispatch:
+    inputs:
+      device:
+        description: "Device codename"
+        required: false
+        default: "yuga"
+      with_su:
+        description: "Include built-in root (addonsu)"
+        required: false
+        default: "false"
+
+jobs:
+  build:
+    name: lineage-14.1 yuga
+    runs-on: ubuntu-22.04
+    timeout-minutes: 355
+
+    steps:
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Checkout CI repo
+        uses: actions/checkout@v4
+
+      - name: Disk + memory before
+        run: |
+          df -h
+          free -h
+
+      - name: Install build packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc bison build-essential ccache curl flex g++-multilib gcc-multilib \
+            git git-lfs gnupg gperf imagemagick liblz4-tool libssl-dev libxml2 \
+            libxml2-utils lzop rsync schedtool squashfs-tools xsltproc zip \
+            zlib1g-dev python2.7 openjdk-8-jdk libncurses-dev
+          sudo apt-get install -y pngcrush lib32z1-dev lib32readline-dev libsdl1.2-dev || true
+          # AOSP 7.1 build scripts expect "python" == python2.7
+          sudo update-alternatives --install /usr/bin/python python /usr/bin/python2.7 1
+          git lfs install --skip-repo
+
+      - name: Configure git
+        run: |
+          git config --global user.name "lineage-builder"
+          git config --global user.email "builder@localhost"
+          git config --global color.ui false
+
+      - name: Install repo tool
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo > "$HOME/bin/repo"
+          chmod a+x "$HOME/bin/repo"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Init LineageOS 14.1
+        run: |
+          mkdir -p "$HOME/lineage"
+          cd "$HOME/lineage"
+          repo init -u https://github.com/LineageOS/android.git -b cm-14.1 \
+            --git-lfs --no-clone-bundle --depth=1
+          mkdir -p .repo/local_manifests
+          cp "$GITHUB_WORKSPACE/local_manifests/yuga.xml" .repo/local_manifests/yuga.xml
+
+      - name: Sync source
+        run: |
+          cd "$HOME/lineage"
+          repo sync -c --no-tags --no-clone-bundle -j"$(nproc)" --force-sync
+
+      - name: Disk after sync
+        run: df -h
+
+      - name: Build ROM
+        run: |
+          cd "$HOME/lineage"
+          export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+          export PATH="$JAVA_HOME/bin:$PATH"
+          export ANDROID_JACK_VM_ARGS="-Dfile.encoding=UTF-8 -XX:+TieredCompilation -Xmx6g"
+          export ALLOW_MISSING_DEPENDENCIES=true
+          export LC_ALL=C
+          [ "${{ github.event.inputs.with_su }}" = "true" ] && export WITH_SU=true || true
+          source build/envsetup.sh
+          brunch yuga 2>&1 | tee build.log
+
+      - name: Disk after build
+        if: always()
+        run: df -h
+
+      - name: Upload ROM artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lineage-14.1-yuga
+          path: |
+            /home/runner/lineage/out/target/product/yuga/*.zip
+            /home/runner/lineage/out/target/product/yuga/recovery.img
+            /home/runner/lineage/out/target/product/yuga/boot.img
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: /home/runner/lineage/build.log
+          if-no-files-found: ignore
+          retention-days: 7
