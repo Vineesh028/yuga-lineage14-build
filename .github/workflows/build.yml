@@ -81,9 +81,23 @@ jobs:
       - name: Disk after sync
         run: df -h
 
+      - name: Patch missing AndroidProducts.mk
+        run: |
+          cd "$HOME/lineage"
+          f=device/sony/yuga/AndroidProducts.mk
+          if [ ! -f "$f" ]; then
+            printf 'PRODUCT_MAKEFILES := $(LOCAL_DIR)/lineage.mk\n' > "$f"
+            echo "created $f:"; cat "$f"
+          else
+            echo "$f already present:"; cat "$f"
+          fi
+          echo "--- AndroidProducts.mk files in device/ ---"
+          find device -maxdepth 3 -name AndroidProducts.mk
+
       - name: Build ROM
         run: |
           cd "$HOME/lineage"
+          set +e
           export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
           export PATH="$JAVA_HOME/bin:$PATH"
           export ANDROID_JACK_VM_ARGS="-Dfile.encoding=UTF-8 -XX:+TieredCompilation -Xmx6g"
@@ -91,7 +105,16 @@ jobs:
           export LC_ALL=C
           [ "${{ github.event.inputs.with_su }}" = "true" ] && export WITH_SU=true || true
           source build/envsetup.sh
-          brunch yuga 2>&1 | tee build.log
+          echo "===== breakfast yuga ====="
+          breakfast yuga 2>&1 | tee build.log
+          echo "breakfast rc=${PIPESTATUS[0]}"
+          echo "TARGET_PRODUCT=$TARGET_PRODUCT TARGET_DEVICE=$TARGET_DEVICE TARGET_BUILD_VARIANT=$TARGET_BUILD_VARIANT"
+          echo "===== mka bacon ====="
+          mka bacon 2>&1 | tee -a build.log
+          echo "mka rc=${PIPESTATUS[0]}"
+          echo "===== output dir ====="
+          ls -la out/target/product/yuga/ 2>&1 | head -40
+          exit ${PIPESTATUS[0]}
 
       - name: Disk after build
         if: always()
