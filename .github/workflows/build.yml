@@ -112,8 +112,10 @@ jobs:
           # tuned config. Make sure the module is actually built.
           GPSMK=device/sony/fusion3-common/product/gps.mk
           echo "--- before ---"; cat "$GPSMK"
-          sed -i.bak -e '/gps\/gps.conf:system\/etc\/gps.conf/d' "$GPSMK"
-          echo 'PRODUCT_PACKAGES += gps.conf' >> "$GPSMK"
+          cat > "$GPSMK" <<'EOF'
+# GPS configurations (CI patch: gps.conf provided by the hardware/qcom/gps module)
+PRODUCT_PACKAGES += gps.conf
+EOF
           echo "--- after ---"; cat "$GPSMK"
           if [ -f device/sony/fusion3-common/gps/gps.conf ]; then
             cp device/sony/fusion3-common/gps/gps.conf hardware/qcom/gps/msm8960/etc/gps.conf
