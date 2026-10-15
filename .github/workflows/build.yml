@@ -76,7 +76,19 @@ jobs:
       - name: Sync source
         run: |
           cd "$HOME/lineage"
-          repo sync -c --no-tags --no-clone-bundle -j"$(nproc)" --force-sync
+          ok=0
+          for attempt in 1 2 3 4 5; do
+            echo "=== repo sync attempt $attempt ==="
+            if repo sync -c --no-tags --no-clone-bundle -j"$(nproc)" --force-sync --retry-fetches=5 --fail-fast; then
+              ok=1; break
+            fi
+            echo "sync attempt $attempt failed; retrying in 20s..."
+            sleep 20
+          done
+          if [ "$ok" != "1" ]; then
+            echo "=== final sync attempt (no fail-fast) ==="
+            repo sync -c --no-tags --no-clone-bundle -j"$(nproc)" --force-sync --retry-fetches=5 || exit 1
+          fi
 
       - name: Disk after sync
         run: df -h
