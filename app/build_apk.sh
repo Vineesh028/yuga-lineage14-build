@@ -13,7 +13,7 @@ JAVAC_JDK8="$HOME/Library/Java/JavaVirtualMachines/azul-1.8.0_502/Contents/Home/
 
 rm -rf build
 mkdir -p build/classes build/dex
-OUT="$(cd .. && pwd)/app/Nova.apk"
+OUT="$(cd .. && pwd)/overlay/app/Nova.apk"
 
 echo "== javac =="
 find src -name '*.java' > build/sources.txt
