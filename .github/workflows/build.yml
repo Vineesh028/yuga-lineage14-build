@@ -142,10 +142,21 @@ jobs:
           [ "${{ github.event.inputs.with_su }}" = "true" ] && export WITH_SU=true || true
           source build/envsetup.sh
           set +e
+          breakfast yuga
+          brc=$?
+          echo "breakfast rc=$brc"
+          [ "$brc" -ne 0 ] && exit "$brc"
+          echo "TARGET_PRODUCT=$TARGET_PRODUCT TARGET_BUILD_VARIANT=$TARGET_BUILD_VARIANT"
+          echo "=== Prebuild resource package to avoid ninja ordering race on generated R.java/Manifest.java ==="
+          mka org.cyanogenmod.platform-res -j"$(nproc)" 2>&1 | tail -20
+          prc=${PIPESTATUS[0]}
+          echo "prebuild platform-res rc=$prc"
+          [ "$prc" -ne 0 ] && exit "$prc"
+          echo "=== Full build ==="
           set -o pipefail
-          brunch yuga 2>&1 | tee build.log
+          mka bacon 2>&1 | tee build.log
           rc=${PIPESTATUS[0]}
-          echo "brunch rc=$rc"
+          echo "mka bacon rc=$rc"
           exit $rc
 
       - name: Disk after build
