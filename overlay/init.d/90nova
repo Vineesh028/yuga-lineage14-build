@@ -1,0 +1,4 @@
+#!/system/bin/sh
+# Nova init.d entry (executed as root by LineageOS sysinit).
+/system/bin/log -t nova "nova: boot hook" 2>/dev/null
+/system/bin/nova-boot.sh &

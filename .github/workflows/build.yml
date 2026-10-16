@@ -122,6 +122,41 @@ jobs:
             echo "copied Sony gps.conf over hardware/qcom/gps/msm8960/etc/gps.conf"
           fi
 
+      - name: Apply Nova customization overlay
+        run: |
+          cd "$HOME/lineage"
+          OV="$GITHUB_WORKSPACE/overlay"
+          NOVA=device/sony/yuga/nova
+          mkdir -p "$NOVA/bin" "$NOVA/init.d" device/sony/yuga/product
+
+          cp "$OV"/bin/*.sh       "$NOVA/bin/"
+          cp "$OV"/init.d/90nova  "$NOVA/init.d/90nova"
+          cp "$OV"/app/Nova.apk   "$NOVA/Nova.apk"
+          cp "$OV"/app/Android.mk "$NOVA/Android.mk"
+          cp "$OV"/etc/hosts      "$NOVA/hosts"
+
+          # extend the privacy blocklist (best effort)
+          if curl -fsSL --max-time 30 https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts -o /tmp/sb.hosts; then
+            grep -E '^(0\.0\.0\.0|127\.0\.0\.1)[[:space:]]+' /tmp/sb.hosts \
+              | grep -vi 'localhost' >> "$NOVA/hosts" || true
+          fi
+          echo "blocklist entries: $(grep -c -E '^0\.0\.0\.0' "$NOVA/hosts" || true)"
+
+          # product fragment (auto-included by device.mk -> include product/*.mk)
+          NOVAMK=device/sony/yuga/product/nova.mk
+          {
+            echo "# Nova customization overlay (auto-generated)"
+            echo "PRODUCT_PACKAGES += Nova nova-boot nova-tune nova-health nova-diagnostics nova-automation nova-assistant 90nova"
+            echo "PRODUCT_COPY_FILES += device/sony/yuga/nova/hosts:system/etc/hosts"
+            while IFS= read -r line; do
+              case "$line" in ''|\#*) continue ;; esac
+              echo "PRODUCT_PROPERTY_OVERRIDES += $line"
+            done < "$OV/system.prop"
+          } > "$NOVAMK"
+
+          echo "--- $NOVAMK ---"; cat "$NOVAMK"
+          echo "--- nova files ---"; find "$NOVA" -type f | sort
+
       - name: Fix Jack server TLS (OpenJDK 8 disabled algorithms)
         run: |
           set +e
